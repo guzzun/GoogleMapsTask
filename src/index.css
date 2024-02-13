@@ -1,0 +1,34 @@
+.map-container {
+  position: relative;
+}
+
+.buttons {
+  z-index: 999;
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translate(-50%, 0);
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  margin: 10px;
+}
+
+.btn {
+  width: 150px;
+  padding: 7px;
+  cursor: pointer;
+  color: #fff;
+  background: #b23e35;
+  transition: 0.3s;
+  transition: width 0.3s, background 0.3s;
+}
+
+.btn:first-child {
+  margin-right: 100px;
+}
+
+.btn:hover {
+  width: 160px;
+  background: #92322b;
+}
