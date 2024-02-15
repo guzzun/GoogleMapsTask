@@ -205,7 +205,7 @@ const MapPage = () => {
       ></GoogleMap>
       <div className="buttons">
         <div className="btn" onClick={undoItem}>
-          UNDO
+          UNDO 
         </div>
         {actionArray.length > 0 && (
           <div className="btn" onClick={redoItem}>
