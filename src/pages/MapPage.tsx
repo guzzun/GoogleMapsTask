@@ -80,10 +80,10 @@ const MapPage = () => {
         paths: path,
         strokeColor: "#000000",
         strokeOpacity: 0.9,
-        strokeWeight: 2,
+        strokeWeight: 3,
         fillColor: "#000",
         fillOpacity: 0.35,
-        editable: true,
+        // editable: true,
         draggable: true,
         map: mapRef.current,
       });
@@ -125,7 +125,15 @@ const MapPage = () => {
         const newPath = [...path];
         newPath[markerIndex] = latLng;
         setPath(newPath);
-        updatePolyline(newPath);
+
+        if (polygon) {
+          const polygonPath = polygon.getPath();
+          polygonPath.setAt(markerIndex, new google.maps.LatLng(latLng));
+        }
+
+        if (polylines) {
+          updatePolyline(newPath);
+        }
       }
     }
   };
@@ -139,7 +147,7 @@ const MapPage = () => {
         path: newPath,
         strokeColor: "#000000",
         strokeOpacity: 0.9,
-        strokeWeight: 2,
+        strokeWeight: 3,
         map: mapRef.current,
       });
       setPolylines(newPolyline);
@@ -205,7 +213,7 @@ const MapPage = () => {
       ></GoogleMap>
       <div className="buttons">
         <div className="btn" onClick={undoItem}>
-          UNDO 
+          UNDO
         </div>
         {actionArray.length > 0 && (
           <div className="btn" onClick={redoItem}>
