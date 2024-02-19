@@ -15,16 +15,18 @@ const MapPage = () => {
   const [path, setPath] = useState<google.maps.LatLngLiteral[]>([]);
   const [markers, setMarkers] = useState<google.maps.Marker[]>([]);
   const [polylines, setPolylines] = useState<google.maps.Polyline | null>(null);
-  const [polygon, setPolygon] = useState<google.maps.Polygon | null>(null);
-  const [actionArray, setActionArray] = useState<google.maps.LatLngLiteral[]>(
-    []
-  );
+  const [polygons, setPolygons] = useState<google.maps.Polygon[]>([]);
+  const [savedMarkers, setSavedMarkers] = useState<google.maps.Marker[]>([]);
+  const [savedPath, setSavedPath] = useState<google.maps.LatLngLiteral[]>([]);
+  // const [actionArray, setActionArray] = useState<google.maps.LatLngLiteral[]>(
+  //   []
+  // );
+  const [actionArray, setActionArray] = useState<any>([]);
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
   });
 
-  // shortcut
   useEffect(() => {
     const handleUndoRedo = (e: KeyboardEvent) => {
       if (e.key === "z" && e.ctrlKey) {
@@ -42,9 +44,8 @@ const MapPage = () => {
     return () => {
       document.removeEventListener("keydown", handleUndoRedo);
     };
-  }, [path, actionArray, polygon]);
+  }, [path, actionArray, polygons]);
 
-  // drag marker
   useEffect(() => {
     const dragListeners: google.maps.MapsEventListener[] = [];
 
@@ -52,14 +53,14 @@ const MapPage = () => {
       const listener = marker.addListener("drag", () => moveMarker(marker));
       dragListeners.push(listener);
     });
+
     return () => {
       dragListeners.forEach((listener) => {
         google.maps.event.removeListener(listener);
       });
     };
-  }, [markers, path, polylines, actionArray]);
+  }, [markers, path, polylines, actionArray, polygons]);
 
-  // click first marker add polygon
   useEffect(() => {
     if (markers.length > 0) {
       const firstMarker = markers[0];
@@ -72,9 +73,8 @@ const MapPage = () => {
     }
   }, [markers, path]);
 
-  // add polygon
   const addPolygon = () => {
-    if (path) {
+    if (path.length > 2) {
       deletePolylines();
       const newPolygon = new window.google.maps.Polygon({
         paths: path,
@@ -83,15 +83,22 @@ const MapPage = () => {
         strokeWeight: 3,
         fillColor: "#000",
         fillOpacity: 0.35,
-        // editable: true,
+        editable: true,
         draggable: true,
         map: mapRef.current,
       });
-      setPolygon(newPolygon);
+      setPolygons([...polygons, newPolygon]);
+
+      const allMarkers = [...savedMarkers, ...markers];
+      const allPath = [...savedPath, ...path];
+      setSavedMarkers(allMarkers);
+      setSavedPath(allPath);
+      setPath([]);
+      setMarkers([]);
+      setPolylines(null);
     }
   };
 
-  // add marker
   const addMarker = (e: google.maps.MapMouseEvent) => {
     if (e.latLng) {
       const latLng: google.maps.LatLngLiteral = {
@@ -116,20 +123,33 @@ const MapPage = () => {
     }
   };
 
-  // move marker
   const moveMarker = (marker: google.maps.Marker) => {
     const latLng = marker.getPosition()?.toJSON();
+
     if (latLng) {
       const markerIndex = markers.findIndex((m) => m === marker);
       if (markerIndex !== -1) {
+        const newMarkers = [...markers];
+        newMarkers[markerIndex] = marker;
+        setMarkers(newMarkers);
+
         const newPath = [...path];
         newPath[markerIndex] = latLng;
         setPath(newPath);
 
-        if (polygon) {
+        const newSavedMarkers = [...savedMarkers];
+        newSavedMarkers[markerIndex] = marker;
+        setSavedMarkers(newSavedMarkers);
+
+        const newSavedPath = [...savedPath];
+        newSavedPath[markerIndex] = latLng;
+        setSavedPath(newSavedPath);
+
+        const newPolygons = [...polygons];
+        newPolygons.forEach((polygon) => {
           const polygonPath = polygon.getPath();
           polygonPath.setAt(markerIndex, new google.maps.LatLng(latLng));
-        }
+        });
 
         if (polylines) {
           updatePolyline(newPath);
@@ -138,7 +158,6 @@ const MapPage = () => {
     }
   };
 
-  // add polyline
   const updatePolyline = (newPath: google.maps.LatLngLiteral[]) => {
     if (polylines) {
       polylines.setPath(newPath);
@@ -154,7 +173,6 @@ const MapPage = () => {
     }
   };
 
-  // delete polylines
   const deletePolylines = () => {
     if (polylines) {
       polylines.setMap(null);
@@ -162,8 +180,7 @@ const MapPage = () => {
     }
   };
 
-  // undo btn
-  const undoItem = () => {
+  const undoPolyline = () => {
     if (path.length === 0) return;
     const removedItem = path[path.length - 1];
     const removedMarker = markers[markers.length - 1];
@@ -174,27 +191,66 @@ const MapPage = () => {
     const newMarkers = markers.slice(0, -1);
     setMarkers(newMarkers);
     updatePolyline(newPath);
-
-    if (polygon) {
-      polygon.setMap(null);
-      setPolygon(null);
-    }
     setActionArray([...actionArray, removedItem]);
   };
 
-  // redo btn
+  const undoItem = () => {
+    if (polygons.length > 0) {
+      const lastPolygon = polygons[polygons.length - 1];
+      const lastPolygonPath = lastPolygon.getPath().getArray();
+
+      const newPolygonPath = lastPolygonPath.slice(0, -1);
+      lastPolygon.setPath(newPolygonPath);
+      const removedMarker = savedMarkers[savedMarkers.length - 1];
+      removedMarker.setMap(null);
+
+      if (newPolygonPath.length === 0) {
+        lastPolygon.setMap(null);
+        const newPolygons = polygons.slice(0, -1);
+        setPolygons(newPolygons);
+      }
+
+      const newMarkers = savedMarkers.slice(0, -1);
+      setSavedMarkers(newMarkers);
+      const newPath = savedPath.slice(0, -1);
+      setSavedPath(newPath);
+
+      setActionArray([...actionArray, lastPolygonPath.slice()]);
+    } else {
+      undoPolyline();
+    }
+  };
+
   const redoItem = () => {
     if (actionArray.length === 0) return;
+
     const lastRemovedItem = actionArray[actionArray.length - 1];
-    const newMarker = new window.google.maps.Marker({
-      position: lastRemovedItem,
-      map: mapRef.current,
-      draggable: true,
+
+    lastRemovedItem.forEach((point: google.maps.LatLngLiteral) => {
+      const marker = new window.google.maps.Marker({
+        position: point,
+        map: mapRef.current,
+        draggable: true,
+      });
+      setSavedMarkers((prevMarkers) => [...prevMarkers, marker]);
     });
-    setPath([...path, lastRemovedItem]);
+
+    const newPolygon = new window.google.maps.Polygon({
+      paths: lastRemovedItem,
+      strokeColor: "#000000",
+      strokeOpacity: 0.9,
+      strokeWeight: 3,
+      fillColor: "#000",
+      fillOpacity: 0.35,
+      editable: true,
+      draggable: true,
+      map: mapRef.current,
+    });
+
+    setPolygons((prevPolygons) => [...prevPolygons, newPolygon]);
+
+    setSavedPath((prevPath) => [...prevPath, ...lastRemovedItem]);
     setActionArray(actionArray.slice(0, -1));
-    setMarkers([...markers, newMarker]);
-    updatePolyline([...path, lastRemovedItem]);
   };
 
   const onLoadMap = (map: google.maps.Map) => {
