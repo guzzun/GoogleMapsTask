@@ -17,10 +17,8 @@ const MapPage = () => {
   const [polylines, setPolylines] = useState<google.maps.Polyline | null>(null);
   const [polygons, setPolygons] = useState<google.maps.Polygon[]>([]);
   const [savedMarkers, setSavedMarkers] = useState<google.maps.Marker[]>([]);
-  const [savedPath, setSavedPath] = useState<google.maps.LatLngLiteral[]>([]);
-  // const [actionArray, setActionArray] = useState<google.maps.LatLngLiteral[]>(
-  //   []
-  // );
+  const [savedPath, setSavedPath] = useState<google.maps.LatLngLiteral[][]>([]);
+
   const [actionArray, setActionArray] = useState<any>([]);
 
   const { isLoaded } = useJsApiLoader({
@@ -47,9 +45,13 @@ const MapPage = () => {
   }, [path, actionArray, polygons]);
 
   useEffect(() => {
+    editPolygons();
+  }, [polygons]);
+
+  useEffect(() => {
     const dragListeners: google.maps.MapsEventListener[] = [];
 
-    markers.forEach((marker) => {
+    savedMarkers.forEach((marker) => {
       const listener = marker.addListener("drag", () => moveMarker(marker));
       dragListeners.push(listener);
     });
@@ -59,7 +61,7 @@ const MapPage = () => {
         google.maps.event.removeListener(listener);
       });
     };
-  }, [markers, path, polylines, actionArray, polygons]);
+  }, [savedMarkers]);
 
   useEffect(() => {
     if (markers.length > 0) {
@@ -90,7 +92,7 @@ const MapPage = () => {
       setPolygons([...polygons, newPolygon]);
 
       const allMarkers = [...savedMarkers, ...markers];
-      const allPath = [...savedPath, ...path];
+      const allPath = [...savedPath, path];
       setSavedMarkers(allMarkers);
       setSavedPath(allPath);
       setPath([]);
@@ -127,36 +129,44 @@ const MapPage = () => {
     const latLng = marker.getPosition()?.toJSON();
 
     if (latLng) {
-      const markerIndex = markers.findIndex((m) => m === marker);
+      const markerIndex = savedMarkers.findIndex((m) => m === marker);
       if (markerIndex !== -1) {
-        const newMarkers = [...markers];
-        newMarkers[markerIndex] = marker;
-        setMarkers(newMarkers);
-
-        const newPath = [...path];
-        newPath[markerIndex] = latLng;
-        setPath(newPath);
-
         const newSavedMarkers = [...savedMarkers];
         newSavedMarkers[markerIndex] = marker;
         setSavedMarkers(newSavedMarkers);
 
-        const newSavedPath = [...savedPath];
-        newSavedPath[markerIndex] = latLng;
-        setSavedPath(newSavedPath);
-
-        const newPolygons = [...polygons];
-        newPolygons.forEach((polygon) => {
-          const polygonPath = polygon.getPath();
-          polygonPath.setAt(markerIndex, new google.maps.LatLng(latLng));
-        });
-
         if (polylines) {
+          const newPath = [...path];
+          newPath[markerIndex] = latLng;
+          setPath(newPath);
           updatePolyline(newPath);
         }
+
+        const updatedPolygons = polygons.map((polygon) => {
+          const polygonPath = polygon.getPath();
+          const polygonPathArray = polygonPath.getArray();
+          polygonPathArray[markerIndex] = new google.maps.LatLng(latLng);
+          const newPolygonPath = new google.maps.MVCArray(polygonPathArray);
+          polygon.setPath(newPolygonPath);
+          return polygon;
+        });
+        console.log(savedPath);
+
+        setPolygons(updatedPolygons);
       }
     }
   };
+
+  const editPolygons = () => {
+    polygons.forEach((polygon: google.maps.Polygon) => {
+      google.maps.event.addListener(polygon.getPath(), "insert_at", () => {
+        console.log("adauga marker");
+        addMidPoint(polygon);
+      });
+    });
+  };
+
+  const addMidPoint = (polygon: google.maps.Polygon) => {};
 
   const updatePolyline = (newPath: google.maps.LatLngLiteral[]) => {
     if (polylines) {
