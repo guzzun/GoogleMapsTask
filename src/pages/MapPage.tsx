@@ -19,6 +19,7 @@ const MapPage = () => {
   const mapRef = useRef<google.maps.Map | null>(null);
   const [path, setPath] = useState<MapPoint[]>([]);
   const [markers, setMarkers] = useState<google.maps.Marker[]>([]);
+  const followLineRef = useRef<google.maps.Polyline | null>(null);
   const [polylines, setPolylines] = useState<google.maps.Polyline | null>(null);
   const [polygons, setPolygons] = useState<google.maps.Polygon[]>([]);
   const [savedMarkers, setSavedMarkers] = useState<google.maps.Marker[][]>([]);
@@ -28,6 +29,18 @@ const MapPage = () => {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
   });
+
+  useEffect(() => {
+    if (mapRef.current) {
+      const listener = mapRef.current.addListener("mousemove", handleMouseMove);
+
+      return () => {
+        if (listener) {
+          listener.remove();
+        }
+      };
+    }
+  }, [markers]);
 
   useEffect(() => {
     const handleUndoRedo = (e: KeyboardEvent) => {
@@ -80,6 +93,38 @@ const MapPage = () => {
       };
     }
   }, [markers, path]);
+
+  const handleMouseMove = (event: google.maps.MapMouseEvent) => {
+    if (event.latLng && markers.length > 0) {
+      const lastMarkerCoords = markers[markers.length - 1]
+        .getPosition()
+        ?.toJSON();
+      if (lastMarkerCoords) {
+        const mousePosition = event.latLng.toJSON();
+        updateFollowLine(lastMarkerCoords, mousePosition);
+      }
+    }
+  };
+
+  const updateFollowLine = (
+    start: google.maps.LatLngLiteral,
+    end: google.maps.LatLngLiteral
+  ) => {
+    if (!followLineRef.current) {
+      const lineCoords = [start, end];
+      const newFollowLine = new window.google.maps.Polyline({
+        path: lineCoords,
+        strokeColor: "#000000",
+        strokeOpacity: 0.5,
+        strokeWeight: 3,
+      });
+      newFollowLine.setMap(mapRef.current);
+      followLineRef.current = newFollowLine;
+    } else {
+      const lineCoords = [start, end];
+      followLineRef.current.setPath(lineCoords);
+    }
+  };
 
   const addPolygon = () => {
     if (path.length > 2) {
